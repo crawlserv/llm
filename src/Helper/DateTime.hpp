@@ -1,0 +1,2208 @@
+/*
+ *
+ * ---
+ *
+ *  Copyright (C) 2021 Anselm Schmidt (ans[ät]ohai.su)
+ *
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version in addition to the terms of any
+ *  licences already herein identified.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program. If not, see <https://www.gnu.org/licenses/>.
+ *
+ * ---
+ *
+ * DateTime.hpp
+ *
+ * Namespace for global date/time helper functions.
+ *
+ *  Created on: Dec 10, 2018
+ *      Author: ans
+ */
+
+#ifndef HELPER_DATETIME_HPP_
+#define HELPER_DATETIME_HPP_
+
+#include "Strings.hpp"
+
+#include "../Main/Exception.hpp"
+
+#include "../_extern/date/include/date/date.h"
+
+#include <algorithm>	// std::min, std::transform
+#include <array>		// std::array
+#include <cctype>		// std::isdigit, std::ispunct, std::isspace, std::tolower
+#include <chrono>		// std::chrono::seconds, std::chrono::system_clock
+#include <clocale>		// std::setlocale
+#include <cmath>		// std::lround
+#include <cstddef>		// std::size_t
+#include <cstdint>		// std::uint8_t, std::int64_t, std::uint16_t, std::uint64_t
+#include <cstdlib>		// std::strtoul
+#include <ctime>		// std::tm, std::strftime, std::time_t
+#include <exception>	// std::exception
+#include <iomanip>		// std::get_time
+#include <locale>		// std::locale
+#include <sstream>		// std::istringstream
+#include <stdexcept>	// std::runtime_error
+#include <string>		// std::stoi, std::stol, fstd::string, std::to_string
+#include <string_view>	// std::string_view, std::string_view_literals
+#include <vector>		// std::vector
+
+//! Namespace for global date/time helper functions.
+namespace crawlservpp::Helper::DateTime {
+
+	/*
+	 * CONSTANTS
+	 */
+
+	using std::string_view_literals::operator""sv;
+
+	///@name Constants
+	///@{
+
+	//! The 'long' format for date/times.
+	inline constexpr auto longDateTime{"%a, %d %b %Y %T %Z"};
+
+	//! The keyword to use a UNIX time format.
+	inline constexpr auto unixTimeFormat{"UNIX"sv};
+
+	//! The keyword to use a UNIX time format plus an offset.
+	inline constexpr auto unixTimeFormatPlus{"UNIX+"sv};
+
+	//! The keyword to use a UNIX time format minus an offset.
+	inline constexpr auto unixTimeFormatMinus{"UNIX-"sv};
+
+	//! The length of the keyword to use a UNIX time format with offset.
+	inline constexpr auto unixTimeFormatXLength{5};
+
+	//! The position of the beginning of a UNIX time format offset.
+	inline constexpr auto unixTimeFormatXOffset{4};
+
+	//! An array containing English ordinal suffixes to be stripped from numbers.
+	inline constexpr std::array englishOrdinalSuffixes{
+		"st"sv, "nd"sv, "rd"sv, "th"sv
+	};
+
+	//! An array containing French ordinal suffix to be stripped from numbers.
+	inline constexpr std::array frenchOrdinalSuffixes{
+		"e"sv, "er"sv
+	};
+
+	//! An array containing Russian ordinal suffixes to be stripped from numbers.
+	inline constexpr std::array russianOrdinalSuffixes{
+		"-ый"sv, "-го"sv, "-му"sv, "-ми"sv, "-й"sv, "-я"sv, "-е"sv, "-м"sv, "-х"sv
+	};
+
+	//! An array containing Ukrainian ordinal suffixes to be stripped from numbers.
+	inline constexpr std::array ukrainianOrdinalSuffixes{
+		"-а"sv, "-е"sv, "-і"sv, "-я"sv, "-є"sv
+	};
+
+	//! The date/time format used by the MySQL database (as @c C string).
+	inline constexpr auto sqlTimeStamp{"%F %T"};
+
+	//! The length of a formatted time stamp in the MySQL database.
+	inline constexpr auto sqlTimeStampLength{19};
+
+	//! The prefix for English locales.
+	inline constexpr auto englishLocalePrefix{"en"sv};
+
+	//! The prefix for French locales.
+	inline constexpr auto frenchLocalePrefix{"fr"sv};
+
+	//! The prefix for Russian locales.
+	inline constexpr auto russianLocalePrefix{"ru"sv};
+
+	//! The prefix for Ukrainian locales.
+	inline constexpr auto ukrainianLocalePrefix{"uk"sv};
+
+	//! The prefix for Finnish locales.
+	inline constexpr auto finnishLocalePrefix{"fi"sv};
+
+	//! The length of the 12-h suffix (@c AM / @c PM).
+	inline constexpr auto amPmLength{2};
+
+	//! The number of hours to be added to a PM time, or to be subtracted from a 12th hour @c AM time.
+	inline constexpr auto hourChange{12};
+
+	//! The hour of noon and midnight.
+	inline constexpr auto hourNoonMidnight{12};
+
+	//! The two digits from which two-digit years will be interpreted as years after 2000.
+	inline constexpr auto centuryFrom{69};
+
+	//! The number of years in a century.
+	inline constexpr auto yearsPerCentury{100};
+
+	//! The number of microseconds per day used for date/time formatting.
+	inline constexpr auto microsecondsPerDay{86400000000};
+
+	//! The number of milliseconds per day used for date/time formatting.
+	inline constexpr auto millisecondsPerDay{86400000};
+
+	//! The number of seconds per day used for date/time formatting.
+	inline constexpr auto secondsPerDay{86400};
+
+	//! The number of microseconds per hour used for date/time formatting.
+	inline constexpr auto microsecondsPerHour{3600000000};
+
+	//! The number of milliseconds per hour used for date/time formatting.
+	inline constexpr auto millisecondsPerHour{3600000};
+
+	//! The number of seconds per hour used for date/time formatting.
+	inline constexpr auto secondsPerHour{3600};
+
+	//! The number of microseconds per minute used for date/time formatting.
+	inline constexpr auto microsecondsPerMinute{60000000};
+
+	//! The number of milliseconds per minute used for date/time formatting.
+	inline constexpr auto millisecondsPerMinute{60000};
+
+	//! The number of seconds per minute used for date/time formatting.
+	inline constexpr auto secondsPerMinute{60};
+
+	//! The number of microseconds per second used for date/time formatting.
+	inline constexpr auto microsecondsPerSecond{1000000};
+
+	//! The number of milliseconds per second used for date/time formatting.
+	inline constexpr auto millisecondsPerSecond{1000};
+
+	//! The number of microseconds per millisecond used for date/time formatting.
+	inline constexpr auto microsecondsPerMillisecond{1000};
+
+	//! The length of a date in valid ISO format (@c YYYY-MM-DD).
+	inline constexpr auto isoDateLength{10};
+
+	//! The length of a year.
+	inline constexpr auto yearLength{4};
+
+	//! The position of the month in an ISO date (@c YYYY-MM-DD).
+	inline constexpr auto isoMonthPos{5};
+
+	//! The length of the month in an ISO date (@c YYYY-MM-DD).
+	inline constexpr auto isoMonthLength{2};
+
+	//! Consider two-digit years before this year as being in the 2000s.
+	inline constexpr auto minTwoDigitYear{1969};
+
+	//! Base of decimal numbers.
+	inline constexpr auto base10{10};
+
+	//! Length of date, reduced to month (@c YYYY-MM)
+	inline constexpr auto reducedToMonthLength{7};
+
+	//! Number of days in a week.
+	inline constexpr auto daysPerWeek{7};
+
+	//! Group dates by weeks.
+	/*!
+	 * \sa reduceDate, getDateGap
+	 */
+	inline constexpr std::uint8_t dateWeeks{0};
+
+	//! Group dates by days.
+	/*!
+	 * \sa reduceDate, getDateGap
+	 */
+	inline constexpr std::uint8_t dateDays{1};
+
+	//! Group dates by months.
+	/*!
+	 * \sa reduceDate, getDateGap
+	 */
+	inline constexpr std::uint8_t dateMonths{2};
+
+	//! Group dates by years.
+	/*!
+	 * \sa reduceDate, getDateGap
+	 */
+	inline constexpr std::uint8_t dateYears{3};
+
+	///@}
+
+	/*
+	 * DECLARATION
+	 */
+
+	///@name Conversion
+	///@{
+
+	void convertLongDateTimeToSQLTimeStamp(std::string& dateTime);
+	void convertCustomDateTimeToSQLTimeStamp(
+			std::string& dateTime,
+			const std::string& customFormat
+	);
+	void convertCustomDateTimeToSQLTimeStamp(
+			std::string& dateTime,
+			const std::string& customFormat,
+			const std::string& locale
+	);
+	void convertTimeStampToSQLTimeStamp(std::string& timeStamp);
+	void convertSQLTimeStampToTimeStamp(std::string& timeStamp);
+	void convert12hTo24h(int& hour, bool isPm);
+	[[nodiscard]] std::string getYearAndWeek(const std::string& date);
+	void reduceDate(std::string& date, std::uint8_t resolution);
+
+	///@}
+	///@name Formatting
+	///@{
+
+	[[nodiscard]] std::string microsecondsToString(std::uint64_t microseconds);
+	[[nodiscard]] std::string millisecondsToString(std::uint64_t milliseconds);
+	[[nodiscard]] std::string secondsToString(std::uint64_t seconds);
+	[[nodiscard]] std::string now();
+
+	///@}
+	///@name Verification
+	///@{
+
+	[[nodiscard]] bool isValidISODate(const std::string& isoDate);
+
+	///@}
+	///@name Comparison
+	///@{
+
+	[[nodiscard]] bool isISODateInRange(std::string_view isoDate, std::string_view rangeFrom, std::string_view rangeTo);
+
+	///@}
+	///@name Gaps inbetween Dates
+	///@{
+
+	[[nodiscard]] std::vector<std::string> getDateGap(
+			const std::string& first,
+			const std::string& second,
+			std::uint8_t resolution
+	);
+	[[nodiscard]] std::vector<std::string> getWeekGap(const std::string& first, const std::string& second);
+	[[nodiscard]] std::vector<std::string> getDayGap(const std::string& first, const std::string& second);
+	[[nodiscard]] std::vector<std::string> getMonthGap(const std::string& first, const std::string& second);
+	[[nodiscard]] std::vector<std::string> getYearGap(const std::string& first, const std::string& second);
+
+	///@}
+	///@name Helpers
+	///@{
+
+	template<std::size_t N>
+	void removeOrdinals(
+			const std::array<std::string_view, N>& suffixes,
+			std::string& strInOut
+	);
+	template<std::size_t N>
+	void removeOrdinals(
+			std::string_view currentLocale,
+			std::string_view localePrefix,
+			const std::array<std::string_view, N>& suffixes,
+			std::string& strInOut
+	);
+	void fixFrenchMonths(std::string_view locale, std::string& strInOut);
+	void fixRussianMonths(std::string_view locale, std::string& strInOut, std::string& formatInOut);
+	void fixUkrainianMonths(std::string_view locale, std::string& strInOut, std::string& formatInOut);
+	void fixFinnishMonths(std::string_view locale, std::string_view format, std::string& strInOut);
+	void extendSingleDigits(std::string& dateTimeString);
+	void fixYear(std::string& sqlTimeStamp, std::string_view format);
+	void handle12hTime(
+			std::string& formatString,
+			const std::string& dateTimeString,
+			bool& outIsAm,
+			bool& outIsPm
+	);
+
+	///@}
+
+	/*
+	 * CLASSES FOR DATE/TIME EXCEPTIONS
+	 */
+
+	//! Class for date/time exceptions.
+	/*!
+	 * This exception is being thrown when
+	 * - a specified date/time format is invalid
+	 * - a date/time conversion fails
+	 */
+	MAIN_EXCEPTION_CLASS();
+
+	//! Class for date/time locale exception
+	/*!
+	 * This exception is being thrown when
+	 *  the specified locale is invalid.
+	 */
+	MAIN_EXCEPTION_SUBCLASS(LocaleException);
+
+	/*
+	 * IMPLEMENTATION
+	 */
+
+	/*
+	 * CONVERSION
+	 */
+
+	//! Converts a date/time formatted in a “long” format into the format @c YYYY-MM-DD HH:MM:SS.
+	/*!
+	 * Calling this function with an empty input
+	 *  string will have no consequences.
+	 *
+	 * \param dateTime String containing the
+	 *   date/time formatted in a “long” format and
+	 *   to be converted in situ.
+	 *
+	 * \throws DateTime::Exception if the conversion
+	 *   fails.
+	 *
+	 * \sa convertCustomDateTimeToSQLTimeStamp
+	 */
+	inline void convertLongDateTimeToSQLTimeStamp(std::string& dateTime) {
+		convertCustomDateTimeToSQLTimeStamp(dateTime, longDateTime);
+	}
+
+	//! Converts date/time with a custom format into the format @c YYYY-MM-DD HH:MM:SS.
+	/*!
+	 *
+	 * Calling this function with an empty input
+	 *  string will have no consequences.
+	 *
+	 * For more information on format strings,
+	 *  see
+	 *  <a href="https://howardhinnant.github.io/date/date.html#from_stream_formatting">
+	 *  Howard Hinnant's paper about his date.h
+	 *  library</a>.
+	 *
+	 * Alternatively, @c UNIX,
+	 *  @c UNIX+&lt;offset&gt;, or
+	 *  @c UNIX&lt;-offset&gt; can be used to convert from
+	 *  a UNIX time plus/minus the given offset.
+	 *
+	 * \note A string view cannot be used, because
+	 *   the underlying @c C function requires a
+	 *   null-terminated string.
+	 *
+	 * \param dateTime Reference to a string
+	 *   containing the date/time formatted in the
+	 *   custom format and to be converted in situ.
+	 *
+	 * \param customFormat A const reference to the
+	 *   string containing the date/time format to be
+	 *   converted from.
+	 *
+	 * \throws DateTime::Exception of the custom
+	 *   format is invalid or empty, or if the
+	 *   date/time conversion fails.
+	 */
+	inline void convertCustomDateTimeToSQLTimeStamp(
+			std::string& dateTime,
+			const std::string& customFormat
+	) {
+		// check arguments
+		if(dateTime.empty()) {
+			return;
+		}
+
+		if(customFormat.empty()) {
+			throw Exception(
+					"DateTime::convertCustomDateTimeToSQLTimeStamp():"
+					" No custom format specified"
+			);
+		}
+
+		// check for UNIX time format
+		if(
+				customFormat == unixTimeFormat
+				|| (
+						customFormat.length() > unixTimeFormatXLength
+						&& (
+								customFormat.substr(0, unixTimeFormatXLength) == unixTimeFormatPlus
+								|| customFormat.substr(0, unixTimeFormatXLength) == unixTimeFormatMinus
+						)
+					)
+		) {
+			// get (optional) offset from UNIX time
+			std::int64_t offset{};
+
+			if(customFormat.length() > unixTimeFormatXLength) {
+				try {
+					offset = std::stol(customFormat.substr(unixTimeFormatXOffset));
+				}
+				catch(const std::exception& e) {
+					throw Exception(
+							"DateTime::convertCustomDateTimeToSQLTimeStamp(): Invalid date/time format - "
+							+ customFormat
+							+ " [expected: UNIX, UNIX+N or UNIX-N where N is a valid number]"
+					);
+				}
+			}
+
+			// get UNIX time
+			std::time_t unixTime{};
+
+			try {
+				if(dateTime.find('.') != std::string::npos) {
+					// handle values with comma as floats (and round them)
+					float f{std::stof(dateTime)};
+
+					unixTime = static_cast<std::time_t>(std::lround(f));
+				}
+				else {
+					unixTime = static_cast<std::time_t>(std::stol(dateTime));
+				}
+			}
+			catch(const std::exception& e) {
+				throw Exception(
+						"Could not convert '"
+						+ dateTime
+						+ "' [expected format: '"
+						+ customFormat
+						+ "'] to date/time"
+				);
+			}
+
+			// remove (optional) offset
+			unixTime -= offset;
+
+			// conversion
+			dateTime = date::format(
+					sqlTimeStamp,
+					std::chrono::system_clock::from_time_t(unixTime)
+			);
+		}
+		else {
+			// remove English ordinal endings (st, nd, rd, th)
+			removeOrdinals(englishOrdinalSuffixes, dateTime);
+
+			std::istringstream in(dateTime);
+			date::sys_seconds tp;
+
+			in >> date::parse(customFormat, tp);
+
+			if(bool(in)) {
+				dateTime = date::format(sqlTimeStamp, tp);
+			}
+			else {
+				// try good old C time
+				std::string formatString{customFormat};
+				bool isAm{false};
+				bool isPm{false};
+				std::tm cTime{};
+
+				extendSingleDigits(dateTime);
+				handle12hTime(formatString, dateTime, isAm, isPm);
+
+				std::istringstream inStringStream(dateTime);
+
+				inStringStream.imbue(std::locale(std::setlocale(LC_ALL, nullptr)));
+
+				inStringStream >> std::get_time(&cTime, formatString.c_str());
+
+				if(inStringStream.fail()) {
+					throw Exception(
+							"Could not convert '"
+							+ dateTime
+							+ "' [expected format: '"
+							+ formatString
+							+ "'] to date/time"
+					);
+				}
+
+				if(isAm || isPm) {
+					convert12hTo24h(cTime.tm_hour, isPm);
+				}
+
+				std::array<char, sqlTimeStampLength + 1> out{};
+
+				const auto len{
+					std::strftime(out.data(), sqlTimeStampLength + 1, sqlTimeStamp, &cTime)
+				};
+
+				if(len > 0) {
+					dateTime = std::string(out.data(), len);
+				}
+				else {
+					throw Exception(
+							"Could not convert '"
+							+ dateTime
+							+ "' [expected format: '"
+							+ customFormat
+							+ "'] to date/time"
+					);
+				}
+			}
+		}
+
+		fixYear(dateTime, customFormat);
+	}
+
+	//! Converts date/time with a custom format into the format @c YYYY-MM-DD HH:MM:SS.
+	/*!
+	 * Calling this function with an empty input
+	 *  string will have no consequences.
+	 *
+	 * For more information on format strings,
+	 *  see
+	 *  <a href="https://howardhinnant.github.io/date/date.html#from_stream_formatting">
+	 *  Howard Hinnant's paper about his date.h
+	 *  library</a>.
+	 *
+	 * \note String views cannot be used, because
+	 *   the underlying functions require
+	 *   null-terminated strings.
+	 *
+	 * \param dateTime A reference to the string
+	 *   containing the date/time formatted in the
+	 *   custom format and to be converted in situ.
+	 *
+	 * \param customFormat A const reference to the
+	 *   string containing the date/time format to
+	 *   be converted from.
+	 *
+	 * \param locale A const reference to the string
+	 *   containing the locale to be used during the
+	 *   conversion.
+	 *
+	 * \throws DateTime::Exception of the custom
+	 *   format is invalid or empty, or if the
+	 *   date/time conversion fails.
+	 */
+	inline void convertCustomDateTimeToSQLTimeStamp(
+			std::string& dateTime,
+			const std::string& customFormat,
+			const std::string& locale
+	) {
+		// check arguments
+		if(dateTime.empty()) {
+			return;
+		}
+
+		if(customFormat.empty()) {
+			throw Exception(
+					"DateTime::convertCustomDateTimeToSQLTimeStamp():"
+					" No custom format specified"
+			);
+		}
+
+		if(locale.empty()) {
+			convertCustomDateTimeToSQLTimeStamp(dateTime, customFormat);
+
+			return;
+		}
+
+		// fix French months ("avr." -> "avril")
+		fixFrenchMonths(locale, dateTime);
+
+		// fix Russian and Ukrainian months
+		std::string formatString{customFormat};
+		fixRussianMonths(locale, dateTime, formatString);
+		fixUkrainianMonths(locale, dateTime, formatString);
+		fixFinnishMonths(locale, formatString, dateTime);
+
+		// remove ordinals
+		removeOrdinals(englishOrdinalSuffixes, dateTime);
+		removeOrdinals(locale, frenchLocalePrefix, frenchOrdinalSuffixes, dateTime);
+		removeOrdinals(locale, russianLocalePrefix, russianOrdinalSuffixes, dateTime);
+		removeOrdinals(locale, ukrainianLocalePrefix, ukrainianOrdinalSuffixes, dateTime);
+
+		std::istringstream in(dateTime);
+		date::sys_seconds tp;
+
+		try {
+			in.imbue(std::locale(locale));
+		}
+		catch(const std::runtime_error& e) {
+			throw LocaleException("Unknown locale '" + locale + "'");
+		}
+
+		in >> date::parse(formatString, tp);
+
+		if(bool(in)) {
+			dateTime = date::format(sqlTimeStamp, tp);
+		}
+		else {
+			// try good old C time
+			bool isAm{false};
+			bool isPm{false};
+			std::tm cTime{};
+
+			extendSingleDigits(dateTime);
+			handle12hTime(formatString, dateTime, isAm, isPm);
+
+			std::istringstream inStringStream(dateTime);
+
+			inStringStream.imbue(std::locale(locale));
+
+			inStringStream >> std::get_time(&cTime, formatString.c_str());
+
+			if(inStringStream.fail()) {
+				throw Exception(
+						"Could not convert '"
+						+ dateTime
+						+ "' [expected format: '"
+						+ formatString
+						+ "'] to date/time"
+				);
+			}
+
+			if(isAm || isPm) {
+				convert12hTo24h(cTime.tm_hour, isPm);
+			}
+
+			std::array<char, sqlTimeStampLength + 1> out{};
+
+			const auto len{
+				std::strftime(out.data(), sqlTimeStampLength + 1, sqlTimeStamp, &cTime)
+			};
+
+			if(len > 0) {
+				dateTime = std::string(out.data(), len);
+			}
+			else {
+				throw Exception(
+						"Could not convert '"
+						+ dateTime
+						+ "' [expected format: '"
+						+ formatString
+						+ "', locale: '"
+						+ locale
+						+ "'] to date/time"
+				);
+			}
+		}
+
+		fixYear(dateTime, customFormat);
+	}
+
+	//! Converts a timestamp in the @c YYYYMMDDHHMMSS format to a MySQL timestamp in the @c YYYY-MM-DD HH:MM:SS format.
+	/*!
+	 * Calling this function with an empty input
+	 *  string will have no consequences.
+	 *
+	 * \param timeStamp A reference to the string
+	 *   containing a timestamp in the @c
+	 *   YYYYMMDDHHMMSS format to be converted in
+	 *   situ.
+	 *
+	 * \throws DateTime::Exception if the conversion
+	 *   fails.
+	 *
+	 * \sa convertCustomDateTimeToSQLTimeStamp
+	 */
+	inline void convertTimeStampToSQLTimeStamp(std::string& timeStamp) {
+		convertCustomDateTimeToSQLTimeStamp(timeStamp, "%Y%m%d%H%M%S");
+	}
+
+	//! Converts a MySQL timestamp in the @c YYYY-MM-DD HH:MM:SS format to a timestamp in the @c YYYYMMDDHHMMSS format.
+	/*!
+	 * Calling this function with an empty input
+	 *  string will have no consequences.
+	 *
+	 * \param timeStamp A reference to the string
+	 *   containing a MySQL timestamp in the @c
+	 *   YYYY-MM-DD HH:MM:SS format to be converted in
+	 *   situ.
+	 *
+	 * \throws DateTime::Exception if the conversion
+	 *   fails.
+	 *
+	 * \sa convertTimeStampToSQLTimeStamp
+	 */
+	inline void convertSQLTimeStampToTimeStamp(std::string& timeStamp) {
+		// check argument
+		if(timeStamp.empty()) {
+			return;
+		}
+
+		std::istringstream in(timeStamp);
+		date::sys_seconds tp;
+
+		in >> date::parse(sqlTimeStamp, tp);
+
+		if(!bool(in)) {
+			throw Exception(
+					"Could not convert SQL timestamp '"
+					+ timeStamp
+					+ "' to date/time"
+			);
+		}
+
+		timeStamp = date::format("%Y%m%d%H%M%S", tp);
+	}
+
+	//! Converts an hour from the 12h to the 24h system.
+	/*!
+	 * \param hour Reference to the hour which will be
+	 *   changed accordingly, if necessary.
+	 * \param isPm Indicates whether the given hour is
+	 *   @c PM. If false, it will be interpreted as @c
+	 *   AM.
+	 */
+	inline void convert12hTo24h(
+			int& hour,
+			bool isPm
+	) {
+		if(isPm) {
+			if(hour < hourNoonMidnight) { /* not 12 PM [noon] */
+				hour += hourChange;
+			}
+		}
+		else if(hour == hourNoonMidnight) { /* at 12 AM [midnight] */
+			hour = 0;
+		}
+	}
+
+	//! Get the year and the ISO week number for a specific date.
+	/*!
+	 * The year of the ISO week might differ
+	 *  from the week of the specified date.
+	 *
+	 * For more information on ISO week numbers,
+	 *  see
+	 *  https://www.epochconverter.com/weeknumbers.
+	 *
+	 * \param date Constant reference to a string
+	 *   containing the date in the format
+	 *   @c YYYY-MM-DD.
+	 *
+	 * \returns The year and the week number in
+	 *   the format @c YYYY-\#WW.
+	 *
+	 * \throws DateTime::Exception if the conversion
+	 *   fails.
+	 */
+	inline std::string getYearAndWeek(const std::string& date) {
+		std::istringstream in(date);
+		date::sys_days tp;
+
+		in >> date::parse("%F", tp);
+
+		if(!bool(in)) {
+			throw Exception(
+					"Could not convert date '"
+					+ date
+					+ "' to week number"
+			);
+		}
+
+		return date::format("%G-#%V", tp);
+	}
+
+	//! Reduce a date to the specified resolution.
+	/*!
+	 * \param date Reference to a string containing
+	 *   the date in the format @c YYYY-MM-DD that
+	 *   will be reduced to the specified resolution,
+	 *   if necessary.
+	 * \param resolution Resolution to be used for
+	 *   reducing the date.
+	 *
+	 * \throws DateTime::Exception if the given date/time
+	 *   has an invalid length, or the specified resolution
+	 *   is invalid.
+	 *
+	 * \sa dateWeeks, dateDays, dateMonths, dateYears
+	 */
+	inline void reduceDate(std::string& date, std::uint8_t resolution) {
+		if(date.empty()) {
+			return;
+		}
+
+		if(date.length() != isoDateLength) {
+			throw Exception("Invalid length of date " + date);
+		}
+
+		switch(resolution) {
+		case dateWeeks:
+			// reduce to year and week (YYYY-#WW)
+			date = getYearAndWeek(date);
+
+			break;
+
+		case dateDays:
+			// no reduction necessary
+
+			break;
+
+		case dateMonths:
+			// reduce to month (YYYY-MM)
+			date = date.substr(0, reducedToMonthLength);
+
+			break;
+
+		case dateYears:
+			// reduce to year (YYYY)
+			date = date.substr(0, yearLength);
+
+			break;
+
+		default:
+			throw Exception("Invalid date resolution: " + std::to_string(resolution));
+		}
+	}
+
+	/*
+	 * FORMATTING
+	 */
+
+	//! Converts microseconds into a well-formatted string.
+	/*!
+	 * \param microseconds The number of microseconds
+	 *   to convert.
+	 *
+	 * \returns A copy of the string containing the
+	 *   well-formatted output.
+	 *
+	 * \sa millisecondsToString, secondsToString
+	 */
+	inline std::string microsecondsToString(std::uint64_t microseconds) {
+		auto rest{microseconds};
+		std::string result;
+
+		const auto days{
+			rest / microsecondsPerDay
+		};
+
+		rest -= days * microsecondsPerDay;
+
+		// narrowing cast as hours are never more than hours per day
+		const auto hours{static_cast<std::uint8_t>(rest / microsecondsPerHour)};
+
+		rest -= hours * microsecondsPerHour;
+
+		// narrowing cast as minutes are never more than minutes per hour
+		const auto minutes{static_cast<std::uint8_t>(rest / microsecondsPerMinute)};
+
+		rest -= minutes * microsecondsPerMinute;
+
+		// narrowing cast as seconds are never more than seconds per minute
+		const auto seconds{static_cast<std::uint8_t>(rest / microsecondsPerSecond)};
+
+		rest -= seconds * microsecondsPerSecond;
+
+		// narrowing cast as milliseconds are never more than milliseconds per second
+		const auto milliseconds{static_cast<std::uint16_t>(rest / microsecondsPerMillisecond)};
+
+		rest -= milliseconds * microsecondsPerMillisecond;
+
+		if(days > 0) {
+			result += std::to_string(days) + "d ";
+		}
+
+		if(hours > 0) {
+			result += std::to_string(hours) + "h ";
+		}
+
+		if(minutes > 0) {
+			result += std::to_string(minutes) + "min ";
+		}
+
+		if(seconds > 0) {
+			result += std::to_string(seconds) + "s ";
+		}
+
+		if(milliseconds > 0) {
+			result += std::to_string(milliseconds) + "ms ";
+		}
+
+		if(rest > 0) {
+			result += std::to_string(rest) + "μs ";
+		}
+
+		if(result.empty()) {
+			return "<1μs";
+		}
+
+		// remove last space
+		result.pop_back();
+
+		return result;
+	}
+
+	//! Converts milliseconds into a well-formatted string.
+	/*!
+	 * \param milliseconds The number of milliseconds
+	 *   to convert.
+	 *
+	 * \returns A copy of the string containing the
+	 *   well-formatted output.
+	 *
+	 * \sa microsecondsToString, secondsToString
+	 */
+	inline std::string millisecondsToString(std::uint64_t milliseconds) {
+		auto rest{milliseconds};
+		std::string result;
+
+		const auto days{rest / millisecondsPerDay};
+
+		rest -= days * millisecondsPerDay;
+
+		// narrowing cast as hours will never be more than hours per day
+		const auto hours{static_cast<std::uint8_t>(rest / millisecondsPerHour)};
+
+		rest -= hours * millisecondsPerHour;
+
+		// narrowing cast as minutes will never be more than minutes per hour
+		const auto minutes{static_cast<std::uint8_t>(rest / millisecondsPerMinute)};
+
+		rest -= minutes * millisecondsPerMinute;
+
+		// narrowing cast as seconds will never be more than seconds per minute
+		const auto seconds{static_cast<std::uint8_t>(rest / millisecondsPerSecond)};
+
+		rest -= seconds * millisecondsPerSecond;
+
+		if(days > 0) {
+			result += std::to_string(days) + "d ";
+		}
+
+		if(hours > 0) {
+			result += std::to_string(hours) + "h ";
+		}
+
+		if(minutes > 0) {
+			result += std::to_string(minutes) + "min ";
+		}
+
+		if(seconds > 0) {
+			result += std::to_string(seconds) + "s ";
+		}
+
+		if(rest > 0) {
+			result += std::to_string(rest) + "ms ";
+		}
+
+		if(result.empty()) {
+			return "<1ms";
+		}
+
+		// remove last space
+		result.pop_back();
+
+		return result;
+	}
+
+	//! Converts seconds into a well-formatted string.
+	/*!
+	 * \param seconds The number of seconds to convert.
+	 *
+	 * \returns A copy of the string containing the
+	 *   well-formatted output.
+	 *
+	 * \sa microsecondsToString, millisecondsToString
+	 */
+	inline std::string secondsToString(std::uint64_t seconds) {
+		auto rest{seconds};
+		std::string result;
+
+		const auto days{rest / secondsPerDay};
+
+		rest -= days * secondsPerDay;
+
+		// narrowing cast as hours are never more than hours per day
+		const auto hours{static_cast<std::uint8_t>(rest / secondsPerHour)};
+
+		rest -= hours * secondsPerHour;
+
+		// narrowing cast as minutes are never more than minutes per hour
+		const auto minutes{static_cast<std::uint8_t>(rest / secondsPerMinute)};
+
+		rest -= minutes * secondsPerMinute;
+
+		if(days > 0) {
+			result += std::to_string(days) + "d ";
+		}
+
+		if(hours > 0) {
+			result += std::to_string(hours) + "h ";
+		}
+
+		if(minutes > 0) {
+			result += std::to_string(minutes) + "min ";
+		}
+
+		if(rest > 0) {
+			result += std::to_string(rest) + "s ";
+		}
+
+		if(result.empty()) {
+			return "<1s";
+		}
+
+		// remove last space
+		result.pop_back();
+
+		return result;
+	}
+
+	//! Formats the current date/time as string in the format @c YYYY-MM-DD HH:MM:SS
+	/*!
+	 * \returns A copy of the string containing the
+	 *   current date/time of the system as string in
+	 *   the format @c YYYY-MM-DD HH:MM:SS.
+	 */
+	inline std::string now() {
+		return date::format(
+				sqlTimeStamp,
+				date::floor<std::chrono::seconds>(
+						std::chrono::system_clock::now()
+				)
+		);
+	}
+
+	/*
+	 * VERIFICATION
+	 */
+
+	//! Checks whether a string contains a valid date in the ISO format.
+	/*!
+	 * \note A string view is not being used, because
+	 *   the underlying string stream requires a copy
+	 *   of the string.
+	 *
+	 * \param isoDate Constant reference to a string
+	 *   containing the date to check.
+	 *
+	 * \returns True if the given string contains a
+	 *   valid date in ISO format, i.e. a date in the
+	 *   format @c YYY-MM-DD. False otherwise.
+	 */
+	inline bool isValidISODate(const std::string& isoDate) {
+		std::istringstream in(isoDate);
+		date::sys_days tp;
+
+		in >> date::parse("%F", tp);
+
+		return bool(in);
+	}
+
+	/*
+	 * COMPARISON
+	 */
+
+	//! Checks whether the given ISO date is in the given range of dates.
+	/*!
+	 * \note Only the first ten characters of the
+	 *    given dates will be considered.
+	 *
+	 * \param isoDate A string view containing the date
+	 *   in valid ISO format, i.e. a date in the format
+	 *   @c YYY-MM-DD.
+	 * \param rangeFrom A string view containing the
+	 *   start date of the range in valid ISO format,
+	 *   i.e. a date in the format @c YYY-MM-DD.
+	 * \param rangeTo A string view containing the end
+	 *   date of the range in valid ISO format, i.e. a
+	 *   date in the format @c YYY-MM-DD.
+	 *
+	 * \returns True, if the given date falls into the
+	 *   given range of dates or one of the two dates
+	 *   defining this range are too short. False, if
+	 *   the given date does not fall into the given
+	 *   range of dates, or the given date is too short.
+	 */
+	inline bool isISODateInRange(
+			std::string_view isoDate,
+			std::string_view rangeFrom,
+			std::string_view rangeTo
+	) {
+		if(isoDate.length() < isoDateLength) {
+			return false;
+		}
+
+		if(rangeFrom.length() < isoDateLength && rangeTo.length() < isoDateLength) {
+			return true;
+		}
+
+		if(rangeTo.length() < isoDateLength) {
+			return isoDate.substr(0, isoDateLength) >= rangeFrom.substr(0, isoDateLength);
+		}
+
+		if(rangeFrom.length() < isoDateLength) {
+			return isoDate.substr(0, isoDateLength) <= rangeTo.substr(0, isoDateLength);
+		}
+
+		return isoDate.substr(0, isoDateLength) >= rangeFrom.substr(0, isoDateLength)
+				&& isoDate <= rangeTo.substr(0, isoDateLength);
+	}
+
+	/*
+	 * GAPS INBETWEEN DATES
+	 */
+
+	//! Gets all dates that lies between two dates.
+	/*!
+	 * \param first Constant reference to a string
+	 *   containing the first date.
+	 * \param second Constant reference to a string
+	 *   containing the second date.
+	 * \param resolution Resolution of the dates.
+	 *
+	 * \returns A vector containing all dates that
+	 *   lies inbetween the two dates in the given
+	 *   resolution.
+	 *
+	 * \throws DateTime::Exception if the given dates
+	 *   cannot be converted according to the specified
+	 *   resolution, or the specified resolution is
+	 *   invalid.
+	 *
+	 * \sa dateWeeks, dateDays, dateMonths, dateYears,
+	 *   getWeekGap, getDayGap, getMonthGap, getYearGap
+	 */
+	inline std::vector<std::string> getDateGap(
+			const std::string& first,
+			const std::string& second,
+			std::uint8_t resolution
+	) {
+		// make sure that first date lies before second date
+		switch(resolution) {
+		case dateWeeks:
+			// dates given as weeks (YYYY-#WW)
+			return getWeekGap(first, second);
+
+		case dateDays:
+			// dates given as days, i.e. in ISO format (YYYY-MM-DD)
+			return getDayGap(first, second);
+
+		case dateMonths:
+			// dates given as month (YYYY-MM)
+			return getMonthGap(first, second);
+
+		case dateYears:
+			// dates given as year (YYYY)
+			return getYearGap(first, second);
+
+		default:
+			throw Exception("Invalid date resolution: " + std::to_string(resolution));
+		}
+	}
+
+	//! Gets all ISO week numbers that lie inbetween two week numbers.
+	/*!
+	 * For more information on ISO week numbers,
+	 *  see
+	 *  https://www.epochconverter.com/weeknumbers.
+	 *
+	 * \param first Constant reference to a string
+	 *   containing the first week in the format
+	 *   @c YYYY-\#WW.
+	 * \param second Constant reference to a string
+	 *  containing the second week in the format
+	 *   @c YYYY-\#WW.
+	 *
+	 * \returns A vector containing all weeks that
+	 *   lie inbetween the first and the second week,
+	 *   in the format @c YYYY-\#WW. An empty vector
+	 *   if the given weeks are equal or follow each
+	 *   other.
+	 *
+	 * \throws DateTime::Exception if the given weeks
+	 *   cannot be converted, i.e. their format is
+	 *   invalid.
+	 *
+	 * \sa getDateGap, getMonthGap, getDayGap, getYearGap
+	 */
+	inline std::vector<std::string> getWeekGap(const std::string& first, const std::string& second) {
+		// make sure the first month lies before the second week
+		if(first > second) {
+			return getWeekGap(second, first);
+		}
+
+		// convert strings to time points
+		std::istringstream inFirst(first + "-1"); /* use Monday */
+		date::sys_days tpFirst;
+
+		inFirst >> date::parse("%G-#%V-%u", tpFirst);
+
+		if(!bool(inFirst)) {
+			throw Exception("Invalid week: '" + first + "' (expected: YYYY-#WW)");
+		}
+
+		std::istringstream inSecond(second + "-1"); /* use Monday */
+		date::sys_days tpSecond;
+
+		inSecond >> date::parse("%G-#%V-%u", tpSecond);
+
+		if(!bool(inSecond)) {
+			throw Exception("Invalid week: '" + second + "' (expected: YYYY-#WW)");
+		}
+
+		// get distance between time points and reserve memory
+		std::vector<std::string> result;
+		const auto distance{static_cast<std::size_t>((tpSecond - tpFirst).count()) / 7};
+
+		if(distance > 1) {
+			result.reserve(distance - 1);
+		}
+
+		// get and return result
+		for(std::size_t week{1}; week < distance; ++week) {
+			tpFirst += date::days{daysPerWeek};
+
+			result.emplace_back(getYearAndWeek(date::format("%F", tpFirst)));
+		}
+
+		return result;
+	}
+
+	//! Gets all days that lie inbetween two dates.
+	/*!
+	 * \param first Constant reference to a string
+	 *   containing the first date in the ISO format,
+	 *   i.e. @c YYYY-MM-DD.
+	 * \param second Constant reference to a string
+	 *   containing the second date in the ISO format,
+	 *   i.e. @c YYYY-MM-DD.
+	 *
+	 * \returns A vector containing all dates that
+	 *   lie inbetween the first and the second date
+	 *   in ISO format, i.e. @c YYYY-MM-DD. An empty
+	 *   vector if the given dates are equal or follow
+	 *   each other.
+	 *
+	 * \throws DateTime::Exception if the given dates
+	 *   cannot be converted, i.e. their format is
+	 *   invalid.
+	 *
+	 * \sa getDateGap, getWeekGap, getMonthGap, getYearGap
+	 */
+	inline std::vector<std::string> getDayGap(const std::string& first, const std::string& second) {
+		// make sure the first date lies before the second date
+		if(first > second) {
+			return getDayGap(second, first);
+		}
+
+		// convert strings to time points
+		std::istringstream inFirst(first);
+		date::sys_days tpFirst;
+
+		inFirst >> date::parse("%F", tpFirst);
+
+		if(!bool(inFirst)) {
+			throw Exception("Invalid date: '" + first + "' (expected: YYYY-MM-DD)");
+		}
+
+		std::istringstream inSecond(second);
+		date::sys_days tpSecond;
+
+		inSecond >> date::parse("%F", tpSecond);
+
+		if(!bool(inSecond)) {
+			throw Exception("Invalid date: '" + second + "' (expected: YYYY-MM-DD)");
+		}
+
+		// get distance between time points and reserve memory
+		std::vector<std::string> result;
+		const auto distance{static_cast<std::size_t>((tpSecond - tpFirst).count())};
+
+		if(distance > 1) {
+			result.reserve(distance - 1);
+		}
+
+		// get and return result
+		for(std::size_t day{1}; day < distance; ++day) {
+			tpFirst += date::days{1};
+
+			result.emplace_back(date::format("%F", tpFirst));
+		}
+
+		return result;
+	}
+
+	//! Gets all months that lie inbetween two months.
+	/*!
+	 * \param first Constant reference to a string
+	 *   containing the first month in the format
+	 *   @c YYYY-MM.
+	 * \param second Constant reference to a string
+	 *  containing the second month in the format
+	 *   @c YYYY-MM.
+	 *
+	 * \returns A vector containing all months that
+	 *   lie inbetween the first and the second month,
+	 *   in the format @c YYYY-MM. An empty vector if
+	 *   the given months are equal or follow each
+	 *   other.
+	 *
+	 * \throws DateTime::Exception if the given months
+	 *   cannot be converted, i.e. their format is
+	 *   invalid.
+	 *
+	 * \sa getDateGap, getWeekGap, getDayGap, getYearGap
+	 */
+	inline std::vector<std::string> getMonthGap(const std::string& first, const std::string& second) {
+		// make sure the first month lies before the second month
+		if(first > second) {
+			return getMonthGap(second, first);
+		}
+
+		// convert strings to time points
+		std::istringstream inFirst(first);
+		date::year_month tpFirst;
+
+		inFirst >> date::parse("%Y-%m", tpFirst);
+
+		if(!bool(inFirst)) {
+			throw Exception("Invalid month: '" + first + "' (expected: YYYY-MM)");
+		}
+
+		std::istringstream inSecond(second);
+		date::year_month tpSecond;
+
+		inSecond >> date::parse("%Y-%m", tpSecond);
+
+		if(!bool(inSecond)) {
+			throw Exception("Invalid month: '" + second + "' (expected: YYYY-MM)");
+		}
+
+		// get distance between time points and reserve memory
+		std::vector<std::string> result;
+		const auto distance{static_cast<std::size_t>((tpSecond - tpFirst).count())};
+
+		if(distance > 1) {
+			result.reserve(distance - 1);
+		}
+
+		// get and return result
+		for(std::size_t month{1}; month < distance; ++month) {
+			tpFirst += date::months{1};
+
+			result.emplace_back(date::format("%Y-%m", tpFirst));
+		}
+
+		return result;
+	}
+
+	//! Gets all years that lies inbetween two years.
+	/*!
+	 * \param first Constant reference to a string
+	 *   containing the first year in the format
+	 *   @c YYYY.
+	 * \param second Constant reference to a string
+	 *   containing the second year in the format
+	 *   @c YYYY.
+	 *
+	 * \returns A vector containing all years that
+	 *   lie inbetween the first and the second year,
+	 *   in the format @c YYYY. An empty vector if
+	 *   the given years are equal or follow each
+	 *   other.
+	 *
+	 * \throws DateTime::Exception if the given years
+	 *   cannot be converted, i.e. their format is
+	 *   invalid.
+	 *
+	 * \sa getDateGap, getWeekGap, getDayGap, getMonthGap
+	 */
+	inline std::vector<std::string> getYearGap(const std::string& first, const std::string& second) {
+		// make sure the first year lies before the second month
+		if(first > second) {
+			return getYearGap(second, first);
+		}
+
+		// convert strings to time points
+		std::istringstream inFirst(first);
+		date::year tpFirst;
+
+		inFirst >> date::parse("%Y", tpFirst);
+
+		if(!bool(inFirst)) {
+			throw Exception("Invalid year: '" + first + "' (expected: YYYY)");
+		}
+
+		std::istringstream inSecond(second);
+		date::year tpSecond;
+
+		inSecond >> date::parse("%Y", tpSecond);
+
+		if(!bool(inSecond)) {
+			throw Exception("Invalid year: '" + second + "' (expected: YYYY)");
+		}
+
+		// get distance between time points and reserve memory
+		std::vector<std::string> result;
+		const auto distance{static_cast<std::size_t>((tpSecond - tpFirst).count())};
+
+		if(distance > 1) {
+			result.reserve(distance - 1);
+		}
+
+		// get and return result
+		for(std::size_t year{1}; year < distance; ++year) {
+			tpFirst += date::years{1};
+
+			result.emplace_back(date::format("%Y", tpFirst));
+		}
+
+		return result;
+	}
+
+	/*
+	 * HELPERS
+	 */
+
+	//! Removes all ordinal suffixes after numbers in the given string.
+	/*!
+	 * \param suffixes Constant reference to an array
+	 *   containing the suffixes to be removed from
+	 *   the end of numbers in the given string.
+	 * \param strInOut A reference to the string
+	 *   containing the date/time, from which the
+	 *   ordinal suffixes will be removed in situ.
+	 */
+	template<std::size_t N> void removeOrdinals(
+			const std::array<std::string_view, N>& suffixes,
+			std::string& strInOut
+	) {
+		std::size_t pos{};
+
+		while(pos < strInOut.length()) {
+			auto next{std::string::npos};
+			std::size_t len{};
+
+			for(const auto& suffix : suffixes) {
+				const auto search{strInOut.find(suffix, pos)};
+
+				if(search < next) {
+					next = search;
+					len = suffix.length();
+				}
+			}
+
+			pos = next;
+
+			if(pos == std::string::npos) {
+				break;
+			}
+
+			if(pos > 0) {
+				if(std::isdigit(strInOut.at(pos - 1)) != 0) {
+					const auto end{pos + len};
+
+					if(
+							end == strInOut.length()
+							|| std::isspace(strInOut.at(end)) != 0
+							|| std::ispunct(strInOut.at(end)) != 0
+					) {
+						// remove st, nd, rd or th
+						strInOut.erase(pos, len);
+
+						// skip whitespace/punctuation afterwards
+						++pos;
+					}
+					else {
+						pos += len + 1;
+					}
+				}
+				else {
+					pos += len + 1;
+				}
+			}
+			else {
+				pos += len + 1;
+			}
+		}
+	}
+
+	//! Removes all ordinal suffixes after numbers in the given string, if the current locale matches the given locale.
+	/*!
+	 * \param currentLocale View of a string
+	 *   containing the current locale.
+	 * \param localePrefix View of a string containing
+	 *   the language prefix of the locale of the
+	 *   given suffixes.
+	 * \param suffixes Constant reference to an array
+	 *   containing the suffixes to be removed from
+	 *   the end of numbers in the given string, if
+	 *   the current locale fits the given locale
+	 *   prefix.
+	 * \param strInOut A reference to the string
+	 *   containing the date/time, from which the
+	 *   ordinal suffixes will be removed in situ, if
+	 *   the current locale starts with the given
+	 *   locale prefix.
+	 */
+	template<std::size_t N> void removeOrdinals(
+			std::string_view currentLocale,
+			std::string_view localePrefix,
+			const std::array<std::string_view, N>& suffixes,
+			std::string& strInOut
+	) {
+		if(currentLocale.length() >= localePrefix.length()) {
+			std::string prefix(currentLocale, 0, localePrefix.length());
+
+			std::transform(
+					prefix.begin(),
+					prefix.end(),
+					prefix.begin(),
+					[](const auto c) {
+						return std::tolower(c);
+					}
+			);
+
+			if(prefix == localePrefix) {
+				removeOrdinals<N>(suffixes, strInOut);
+			}
+		}
+	}
+
+	//! Replaces the abbreviation @c avr. for the month of april (avril) in the given string, if the locale is French.
+	/*!
+	 * If the given locale is not French, the function
+	 *  call will be without consequences.
+	 *
+	 * \param locale A string view containing the
+	 *   locale to be checked for French.
+	 * \param strInOut A reference to the string
+	 *   containing the date/time, in which the
+	 *   abbreviation will be replaced if the given
+	 *   locale is French.
+	 */
+	inline void fixFrenchMonths(std::string_view locale, std::string& strInOut) {
+		if(locale.length() >= frenchLocalePrefix.length()) {
+			std::string prefix(locale, 0, frenchLocalePrefix.length());
+
+			std::transform(
+					prefix.begin(),
+					prefix.end(),
+					prefix.begin(),
+					[](const auto c) {
+						return std::tolower(c);
+					}
+			);
+
+			if(prefix == frenchLocalePrefix) {
+				Helper::Strings::replaceAll(strInOut, "avr.", "avril");
+			}
+		}
+	}
+
+	//! Shortens Russian month names and replaces the abbreviations @c май and @c сент, if the locale is Russian.
+	/*!
+	 * If the given locale is English, and the format
+	 *  contains @c %b or @c %B, the function will
+	 *  replace the Russified month names @c maj,
+	 *  @c Maj and @c MAJ with the English @c May.
+	 *
+	 * Otherwise, the function call will be without
+	 *  consequences.
+	 *
+	 * \param locale A string view containing the
+	 *   locale to be checked for Russian or English.
+	 * \param strInOut A reference to the string
+	 *   containing the date/time, in which the months
+	 *   will be replaced, if the given locale is
+	 *   Russian or English.
+	 * \param formatInOut A reference to the string
+	 *   containing the formatting string that will be
+	 *   changed accordingly, if necessary.
+	 */
+	inline void fixRussianMonths(std::string_view locale, std::string& strInOut, std::string& formatInOut) {
+		if(locale.length() >= russianLocalePrefix.length()) {
+			std::string prefix(locale, 0, russianLocalePrefix.length());
+
+			std::transform(
+					prefix.begin(),
+					prefix.end(),
+					prefix.begin(),
+					[](const auto c) {
+						return std::tolower(c);
+					}
+			);
+
+			if(prefix == russianLocalePrefix) {
+				std::string oldString;
+
+				const bool bigB{
+					formatInOut.find("%B") != std::string::npos
+				};
+
+				if(bigB) {
+					oldString = strInOut;
+				}
+
+				Helper::Strings::replaceAll(strInOut, "январь", "янв");
+				Helper::Strings::replaceAll(strInOut, "Январь", "янв");
+				Helper::Strings::replaceAll(strInOut, "ЯНВАРЬ", "янв");
+
+				if(!bigB) {
+					Helper::Strings::replaceAll(strInOut, "Янв", "янв");
+					Helper::Strings::replaceAll(strInOut, "ЯНВ", "янв");
+				}
+
+				Helper::Strings::replaceAll(strInOut, "февраль", "фев");
+				Helper::Strings::replaceAll(strInOut, "Февраль", "фев");
+				Helper::Strings::replaceAll(strInOut, "ФЕВРАЛЬ", "фев");
+
+				if(!bigB) {
+					Helper::Strings::replaceAll(strInOut, "Фев", "фев");
+					Helper::Strings::replaceAll(strInOut, "ФЕВ", "фев");
+				}
+
+				Helper::Strings::replaceAll(strInOut, "марта", "мар");
+				Helper::Strings::replaceAll(strInOut, "Марта", "мар");
+				Helper::Strings::replaceAll(strInOut, "МАРТА", "мар");
+				Helper::Strings::replaceAll(strInOut, "март", "мар");
+				Helper::Strings::replaceAll(strInOut, "Март", "мар");
+				Helper::Strings::replaceAll(strInOut, "МАРТ", "мар");
+
+				if(!bigB) {
+					Helper::Strings::replaceAll(strInOut, "Мар", "мар");
+					Helper::Strings::replaceAll(strInOut, "МАР", "мар");
+				}
+
+				Helper::Strings::replaceAll(strInOut, "апрель", "апр");
+				Helper::Strings::replaceAll(strInOut, "Апрель", "апр");
+				Helper::Strings::replaceAll(strInOut, "АПРЕЛЬ", "апр");
+
+				if(!bigB) {
+					Helper::Strings::replaceAll(strInOut, "Апр", "апр");
+					Helper::Strings::replaceAll(strInOut, "АПР", "апр");
+				}
+
+				Helper::Strings::replaceAll(strInOut, "май", "мая");
+				Helper::Strings::replaceAll(strInOut, "Май", "мая");
+				Helper::Strings::replaceAll(strInOut, "МАЙ", "мая");
+
+				if(!bigB) {
+					Helper::Strings::replaceAll(strInOut, "Мая", "мая");
+					Helper::Strings::replaceAll(strInOut, "МАЯ", "мая");
+				}
+
+				Helper::Strings::replaceAll(strInOut, "июнь", "июн");
+				Helper::Strings::replaceAll(strInOut, "Июнь", "июн");
+				Helper::Strings::replaceAll(strInOut, "ИЮНь", "июн");
+
+				if(!bigB) {
+					Helper::Strings::replaceAll(strInOut, "Июн", "июн");
+					Helper::Strings::replaceAll(strInOut, "ИЮН", "июн");
+				}
+
+				Helper::Strings::replaceAll(strInOut, "июль", "июл");
+				Helper::Strings::replaceAll(strInOut, "Июль", "июл");
+				Helper::Strings::replaceAll(strInOut, "ИЮЛь", "июл");
+
+				if(!bigB) {
+					Helper::Strings::replaceAll(strInOut, "Июл", "июл");
+					Helper::Strings::replaceAll(strInOut, "ИЮЛ", "июл");
+				}
+
+				Helper::Strings::replaceAll(strInOut, "августа", "авг");
+				Helper::Strings::replaceAll(strInOut, "Августа", "авг");
+				Helper::Strings::replaceAll(strInOut, "АВГУСТА", "авг");
+				Helper::Strings::replaceAll(strInOut, "август", "авг");
+				Helper::Strings::replaceAll(strInOut, "Август", "авг");
+				Helper::Strings::replaceAll(strInOut, "АВГУСТ", "авг");
+
+				if(!bigB) {
+					Helper::Strings::replaceAll(strInOut, "Авг", "авг");
+					Helper::Strings::replaceAll(strInOut, "АВГ", "авг");
+				}
+
+				Helper::Strings::replaceAll(strInOut, "сентябрь", "сен");
+				Helper::Strings::replaceAll(strInOut, "Сентябрь", "сен");
+				Helper::Strings::replaceAll(strInOut, "СЕНТЯБРЬ", "сен");
+				Helper::Strings::replaceAll(strInOut, "сентября", "сен");
+				Helper::Strings::replaceAll(strInOut, "Сентября", "сен");
+				Helper::Strings::replaceAll(strInOut, "СЕНТЯБРя", "сен");
+				Helper::Strings::replaceAll(strInOut, "Сен", "сен");
+				Helper::Strings::replaceAll(strInOut, "СЕН", "сен");
+				Helper::Strings::replaceAll(strInOut, "сент", "сен");
+				Helper::Strings::replaceAll(strInOut, "сенТ", "сен");
+
+				Helper::Strings::replaceAll(strInOut, "октябрь", "окт");
+				Helper::Strings::replaceAll(strInOut, "Октябрь", "окт");
+				Helper::Strings::replaceAll(strInOut, "ОКТЯБРЬ", "окт");
+
+				if(!bigB) {
+					Helper::Strings::replaceAll(strInOut, "Окт", "окт");
+					Helper::Strings::replaceAll(strInOut, "ОКТ", "окт");
+				}
+
+				Helper::Strings::replaceAll(strInOut, "ноябрь", "ноя");
+				Helper::Strings::replaceAll(strInOut, "Ноябрь", "ноя");
+				Helper::Strings::replaceAll(strInOut, "НОЯБРЬ", "ноя");
+
+				if(!bigB) {
+					Helper::Strings::replaceAll(strInOut, "Ноя", "ноя");
+					Helper::Strings::replaceAll(strInOut, "НОЯ", "ноя");
+				}
+
+				Helper::Strings::replaceAll(strInOut, "декабрь", "дек");
+				Helper::Strings::replaceAll(strInOut, "Декабрь", "дек");
+				Helper::Strings::replaceAll(strInOut, "ДЕКАБРЬ", "дек");
+
+				if(!bigB) {
+					Helper::Strings::replaceAll(strInOut, "Дек", "дек");
+					Helper::Strings::replaceAll(strInOut, "ДЕК", "дек");
+				}
+
+				if(bigB && strInOut != oldString) {
+					Helper::Strings::replaceAll(formatInOut, "%B", "%b");
+				}
+
+				return;
+			}
+		}
+
+		// if the locale is English, replace the Russified "maj"/"Maj"/"MAJ" with English "May"
+		if(
+				formatInOut.find("%b") != std::string::npos
+				|| formatInOut.find("%B") != std::string::npos
+		) {
+			if(locale.length() >= englishLocalePrefix.length()) {
+				std::string prefix(locale, 0, russianLocalePrefix.length());
+
+				std::transform(
+						prefix.begin(),
+						prefix.end(),
+						prefix.begin(),
+						[](const auto c) {
+							return std::tolower(c);
+						}
+				);
+
+				if(prefix == englishLocalePrefix) {
+					Helper::Strings::replaceAll(strInOut, "maj", "May");
+					Helper::Strings::replaceAll(strInOut, "Maj", "May");
+					Helper::Strings::replaceAll(strInOut, "MAJ", "May");
+				}
+			}
+		}
+	}
+
+	//! Shortens Ukrainian month names, if the locale is Ukrainian.
+	/*!
+	 * If the given locale is not Ukrainian, the function
+	 *  call will be without consequences.
+	 *
+	 * \param locale A string view containing the locale to
+	 *   be checked for Ukrainian.
+	 * \param strInOut A reference to the string containing
+	 *   the date/time, in which the months will be
+		  replaced, if the given locale is Ukrainian.
+	 * \param formatInOut A reference to the string
+	 *   containing the formatting string that will be
+	 *   changed accordingly, if necessary.
+	 */
+	inline void fixUkrainianMonths(std::string_view locale, std::string& strInOut, std::string& formatInOut) {
+		if(locale.length() >= ukrainianLocalePrefix.length()) {
+			std::string prefix(locale, 0, ukrainianLocalePrefix.length());
+
+			std::transform(
+					prefix.begin(),
+					prefix.end(),
+					prefix.begin(),
+					[](const auto c) {
+						return std::tolower(c);
+					}
+			);
+
+			if(prefix == ukrainianLocalePrefix) {
+				const bool bigB{
+					formatInOut.find("%B") != std::string::npos
+				};
+				std::string oldString;
+
+				if(bigB) {
+					oldString = strInOut;
+				}
+
+				Helper::Strings::replaceAll(strInOut, "січень", "січ");
+				Helper::Strings::replaceAll(strInOut, "Січень", "січ");
+				Helper::Strings::replaceAll(strInOut, "СІЧЕНЬ", "січ");
+
+				if(!bigB) {
+					Helper::Strings::replaceAll(strInOut, "Січ", "січ");
+					Helper::Strings::replaceAll(strInOut, "СІЧ", "січ");
+					Helper::Strings::replaceAll(strInOut, "стд", "січ");
+					Helper::Strings::replaceAll(strInOut, "Стд", "січ");
+					Helper::Strings::replaceAll(strInOut, "СТД", "січ");
+				}
+
+				Helper::Strings::replaceAll(strInOut, "лютий", "лют");
+				Helper::Strings::replaceAll(strInOut, "Лютий", "лют");
+				Helper::Strings::replaceAll(strInOut, "ЛЮТИЙ", "лют");
+
+				if(!bigB) {
+					Helper::Strings::replaceAll(strInOut, "Лют", "лют");
+					Helper::Strings::replaceAll(strInOut, "ЛЮТ", "лют");
+				}
+
+				Helper::Strings::replaceAll(strInOut, "березень", "бер");
+				Helper::Strings::replaceAll(strInOut, "Березень", "бер");
+				Helper::Strings::replaceAll(strInOut, "БЕРЕЗЕНЬ", "бер");
+
+				if(!bigB) {
+					Helper::Strings::replaceAll(strInOut, "Бер", "бер");
+					Helper::Strings::replaceAll(strInOut, "БЕР", "бер");
+				}
+
+				Helper::Strings::replaceAll(strInOut, "квітень", "кві");
+				Helper::Strings::replaceAll(strInOut, "Квітень", "кві");
+				Helper::Strings::replaceAll(strInOut, "КВІТЕНЬ", "кві");
+
+				if(!bigB) {
+					Helper::Strings::replaceAll(strInOut, "крс", "кві");
+					Helper::Strings::replaceAll(strInOut, "Крс", "кві");
+					Helper::Strings::replaceAll(strInOut, "КРС", "кві");
+				}
+
+				Helper::Strings::replaceAll(strInOut, "травень", "тра");
+				Helper::Strings::replaceAll(strInOut, "Травень", "тра");
+				Helper::Strings::replaceAll(strInOut, "ТРАВЕНЬ", "тра");
+
+				if(!bigB) {
+					Helper::Strings::replaceAll(strInOut, "Тра", "тра");
+					Helper::Strings::replaceAll(strInOut, "ТРА", "тра");
+				}
+
+				Helper::Strings::replaceAll(strInOut, "червень", "чер");
+				Helper::Strings::replaceAll(strInOut, "Червень", "чер");
+				Helper::Strings::replaceAll(strInOut, "ЧЕРВЕНЬ", "чер");
+
+				if(!bigB) {
+					Helper::Strings::replaceAll(strInOut, "Чер", "чер");
+					Helper::Strings::replaceAll(strInOut, "ЧЕР", "чер");
+				}
+
+				Helper::Strings::replaceAll(strInOut, "липень", "лип");
+				Helper::Strings::replaceAll(strInOut, "Липень", "лип");
+				Helper::Strings::replaceAll(strInOut, "ЛИПЕНЬ", "лип");
+
+				if(!bigB) {
+					Helper::Strings::replaceAll(strInOut, "Лип", "лип");
+					Helper::Strings::replaceAll(strInOut, "ЛИП", "лип");
+				}
+
+				Helper::Strings::replaceAll(strInOut, "серпень", "сер");
+				Helper::Strings::replaceAll(strInOut, "Серпень", "сер");
+				Helper::Strings::replaceAll(strInOut, "СЕРПЕНЬ", "сер");
+
+				if(!bigB) {
+					Helper::Strings::replaceAll(strInOut, "Сер", "сер");
+					Helper::Strings::replaceAll(strInOut, "СЕР", "сер");
+				}
+
+				Helper::Strings::replaceAll(strInOut, "вересень", "вер");
+				Helper::Strings::replaceAll(strInOut, "Вересень", "вер");
+				Helper::Strings::replaceAll(strInOut, "ВЕРЕСЕНЬ", "вер");
+
+				if(!bigB) {
+					Helper::Strings::replaceAll(strInOut, "Вер", "вер");
+					Helper::Strings::replaceAll(strInOut, "ВЕР", "вер");
+					Helper::Strings::replaceAll(strInOut, "врс", "вер");
+					Helper::Strings::replaceAll(strInOut, "Врс", "вер");
+					Helper::Strings::replaceAll(strInOut, "ВРС", "вер");
+				}
+
+				Helper::Strings::replaceAll(strInOut, "жовтень", "жов");
+				Helper::Strings::replaceAll(strInOut, "Жовтень", "жов");
+				Helper::Strings::replaceAll(strInOut, "ЖОВТЕНЬ", "жов");
+
+				if(!bigB) {
+					Helper::Strings::replaceAll(strInOut, "Жов", "жов");
+					Helper::Strings::replaceAll(strInOut, "ЖОВ", "жов");
+					Helper::Strings::replaceAll(strInOut, "жнв", "жов");
+					Helper::Strings::replaceAll(strInOut, "Жнв", "жов");
+					Helper::Strings::replaceAll(strInOut, "ЖНВ", "жов");
+				}
+
+				Helper::Strings::replaceAll(strInOut, "листопада", "лис");
+				Helper::Strings::replaceAll(strInOut, "Листопада", "лис");
+				Helper::Strings::replaceAll(strInOut, "ЛИСТОПАДА", "лис");
+				Helper::Strings::replaceAll(strInOut, "листопад", "лис");
+				Helper::Strings::replaceAll(strInOut, "Листопад", "лис");
+				Helper::Strings::replaceAll(strInOut, "ЛИСТОПАД", "лис");
+
+				if(!bigB) {
+					Helper::Strings::replaceAll(strInOut, "Лис", "лис");
+					Helper::Strings::replaceAll(strInOut, "ЛИС", "лис");
+				}
+
+				Helper::Strings::replaceAll(strInOut, "грудень", "гру");
+				Helper::Strings::replaceAll(strInOut, "Грудень", "гру");
+				Helper::Strings::replaceAll(strInOut, "ГРУДЕНЬ", "гру");
+
+				if(!bigB) {
+					Helper::Strings::replaceAll(strInOut, "Гру", "гру");
+					Helper::Strings::replaceAll(strInOut, "ГРУ", "гру");
+				}
+
+				if(bigB && strInOut != oldString) {
+					Helper::Strings::replaceAll(formatInOut, "%B", "%b");
+				}
+			}
+		}
+	}
+
+	//! Fixes semi-abbreviated Finnish month names (@c huhtik, @c touko, etc.), if the locale is Finnish.
+	/*!
+	 * If the given locale is not Finnish, the function
+	 *  call will be without consequences.
+	 *
+	 * If abbreviated month names (@c %b) are not
+	 *  considered in the given format string, the
+	 *  function call will be without consequences.
+	 *
+	 * \param locale A string view containing the locale to
+	 *   be checked for Finnish.
+	 * \param format A reference to the string
+	 *   containing the formatting string that will be
+	 *   checked for abbreviated month names (@c %b).
+	 * \param strInOut A reference to the string containing
+	 *   the date/time, in which the semi-abbreviated months
+	 *    will be replaced, if the given locale is Finnish.
+	 */
+	inline void fixFinnishMonths(std::string_view locale, std::string_view format, std::string& strInOut) {
+		if(
+				format.find("%b") != std::string::npos
+				&& locale.length() >= finnishLocalePrefix.length()
+		) {
+			std::string prefix(locale, 0, finnishLocalePrefix.length());
+
+			std::transform(
+					prefix.begin(),
+					prefix.end(),
+					prefix.begin(),
+					[](const auto c) {
+						return std::tolower(c);
+					}
+			);
+
+			if(prefix == finnishLocalePrefix) {
+				Helper::Strings::replaceAll(strInOut, "tammik", "tammi");
+				Helper::Strings::replaceAll(strInOut, "Tammik", "tammi");
+				Helper::Strings::replaceAll(strInOut, "TAMMIK", "tammi");
+
+				Helper::Strings::replaceAll(strInOut, "helmik", "helmi");
+				Helper::Strings::replaceAll(strInOut, "Helmik", "helmi");
+				Helper::Strings::replaceAll(strInOut, "HELMIK", "helmi");
+
+				Helper::Strings::replaceAll(strInOut, "maalisk", "maalis");
+				Helper::Strings::replaceAll(strInOut, "Maalisk", "maalis");
+				Helper::Strings::replaceAll(strInOut, "MAALISK", "maalis");
+
+				Helper::Strings::replaceAll(strInOut, "huhtik", "huhti");
+				Helper::Strings::replaceAll(strInOut, "Huhtik", "huhti");
+				Helper::Strings::replaceAll(strInOut, "HUHTIK", "huhti");
+
+				Helper::Strings::replaceAll(strInOut, "toukok", "touko");
+				Helper::Strings::replaceAll(strInOut, "Toukok", "touko");
+				Helper::Strings::replaceAll(strInOut, "TOUKOK", "touko");
+
+				Helper::Strings::replaceAll(strInOut, "kesäk", "kesä");
+				Helper::Strings::replaceAll(strInOut, "Kesäk", "kesä");
+				Helper::Strings::replaceAll(strInOut, "KESÄK", "kesä");
+
+				Helper::Strings::replaceAll(strInOut, "heinäk", "heinä");
+				Helper::Strings::replaceAll(strInOut, "Heinäk", "heinä");
+				Helper::Strings::replaceAll(strInOut, "HEINÄK", "heinä");
+
+				Helper::Strings::replaceAll(strInOut, "elok", "elo");
+				Helper::Strings::replaceAll(strInOut, "Elok", "elo");
+				Helper::Strings::replaceAll(strInOut, "ELOK", "elo");
+
+				Helper::Strings::replaceAll(strInOut, "syysk", "syys");
+				Helper::Strings::replaceAll(strInOut, "Syysk", "syys");
+				Helper::Strings::replaceAll(strInOut, "SYYSK", "syys");
+
+				Helper::Strings::replaceAll(strInOut, "marrask", "marras");
+				Helper::Strings::replaceAll(strInOut, "Marrask", "marras");
+				Helper::Strings::replaceAll(strInOut, "MARRASK", "marras");
+
+				Helper::Strings::replaceAll(strInOut, "jouluk", "joulu");
+				Helper::Strings::replaceAll(strInOut, "Jouluk", "joulu");
+				Helper::Strings::replaceAll(strInOut, "JOULUK", "joulu");
+			}
+		}
+	}
+
+	//! Extends single digits (@c 1-9) by adding a leading zero to each of them.
+	/*!
+	 * \param dateTimeString Reference to the string
+	 *   in which all single digits will be extended.
+	 */
+	inline void extendSingleDigits(std::string& dateTimeString) {
+		std::size_t pos{};
+
+		while(pos < dateTimeString.length()) {
+			pos = dateTimeString.find_first_of("123456789", pos);
+
+			if(pos == std::string::npos) {
+				break;
+			}
+
+			if(
+					(
+							pos == 0
+							|| std::isdigit(dateTimeString[pos - 1]) == 0
+					) &&
+					(
+							pos == dateTimeString.length() - 1
+							|| std::isdigit(dateTimeString[pos + 1]) == 0
+					)
+			) {
+				// extend digit by adding leading zero
+				dateTimeString.insert(pos, 1, '0');
+
+				++pos;
+			}
+
+			++pos;
+		}
+	}
+
+	//! Changes a year before 1969 into a year after 2000, if it has been parsed from two digits.
+	/*!
+	 * \param sqlTimeStamp Reference to the string
+	 *   containing the timestamp that will be
+	 *   changed, if necessary.
+	 * \param format View to the string containing the
+	 *   format. If it does not contain @c %y, the
+	 *   call to the function will have no effect.
+	 */
+	inline void fixYear(std::string& sqlTimeStamp, std::string_view format) {
+		if(
+				format.find("%y") != std::string_view::npos
+				&& sqlTimeStamp.length() > yearLength
+				&& std::strtoul(
+						sqlTimeStamp.substr(0, yearLength).c_str(),
+						nullptr,
+						base10
+				) < minTwoDigitYear
+		) {
+			sqlTimeStamp[0] = '2';
+			sqlTimeStamp[1] = '0';
+		}
+	}
+
+	//! Handles 12h-time manually to avoid buggy standard library implementations.
+	/*!
+	 * If the format contains a 12h suffix (@c %p),
+	 *  it will be replaced by the actual content
+	 *  of the suffix. For times after noon (@c pm),
+	 *  the 12 hours before noon need to be manually
+	 *  added during conversion. For times in the
+	 *  12th hour, 12 hours need to be subtracted
+	 *  manually from the AM time.
+	 *
+	 * \param formatString Reference to a string
+	 *   containing the format of the date/time.
+	 * \param dateTimeString Constant reference to a
+	 *   string containing the date/time.
+	 * \param outIsAm Reference to a boolean value
+	 *   that will be set to @c true, if an AM time
+	 *   has been encountered, i.e. during conversion,
+	 *   twelve hours need to be manually subtracted
+	 *   if the given time is in the 12th hour.
+	 *   Otherwise its value will not be changed.
+	 * \param outIsPm Reference to a boolean value
+	 *   that will be set to @c true, if an PM time
+	 *   has been encountered, i.e. during conversion,
+	 *   twelve hours need to be manually added.
+	 *   Otherwise its value will not be changed.
+	 *
+	 * \note Replaced will be the first @c am, @c AM,
+	 *   @c pm, or @c PM that is surrounded by white
+	 *   spaces, punctuation, digits and/or the
+	 *   beginning/end of the string, regardless
+	 *   of its actual position.
+	 */
+	inline void handle12hTime(
+			std::string& formatString,
+			const std::string& dateTimeString,
+			bool& outIsAm,
+			bool& outIsPm
+	) {
+		const auto formatPos{formatString.find("%p")};
+
+		if(formatPos == std::string::npos) {
+			return;
+		}
+
+		std::size_t pos{};
+
+		while(pos < dateTimeString.length()) {
+			auto newPos{pos};
+			auto amPos1{dateTimeString.find("am", pos)};
+			auto amPos2{dateTimeString.find("AM", pos)};
+			auto amPos{std::min(amPos1, amPos2)};
+
+			if(amPos != std::string::npos) {
+				newPos = amPos;
+
+				if(
+						(
+								amPos == 0
+								|| std::isspace(dateTimeString[amPos - 1]) != 0
+								|| std::ispunct(dateTimeString[amPos - 1]) != 0
+								|| std::isdigit(dateTimeString[amPos - 1]) != 0
+						) && (
+								amPos == dateTimeString.length() - amPmLength
+								|| std::isspace(dateTimeString[amPos + amPmLength]) != 0
+								|| std::ispunct(dateTimeString[amPos + amPmLength]) != 0
+								|| std::isdigit(dateTimeString[amPos + amPmLength]) != 0
+						)
+				) {
+					// found am/AM -> replace it in format string
+					Helper::Strings::replaceAll(
+							formatString,
+							"%p",
+							dateTimeString.substr(amPos, amPmLength)
+					);
+
+					outIsAm = true;
+
+					return;
+				}
+			}
+
+			auto pmPos1{dateTimeString.find("pm", pos)};
+			auto pmPos2{dateTimeString.find("PM", pos)};
+			auto pmPos{std::min(pmPos1, pmPos2)};
+
+			if(pmPos != std::string::npos) {
+				if(pmPos > newPos) {
+					newPos = pmPos;
+				}
+
+				if(
+						(
+								pmPos == 0
+								|| std::isspace(dateTimeString[pmPos - 1]) != 0
+								|| std::ispunct(dateTimeString[pmPos - 1]) != 0
+								|| std::isdigit(dateTimeString[pmPos - 1]) != 0
+						) && (
+								pmPos == dateTimeString.length() - amPmLength
+								|| std::isspace(dateTimeString[pmPos + amPmLength]) != 0
+								|| std::ispunct(dateTimeString[pmPos + amPmLength]) != 0
+								|| std::isdigit(dateTimeString[pmPos + amPmLength]) != 0
+						)
+				) {
+					// found pm/PM -> replace it in format string
+					Helper::Strings::replaceAll(
+							formatString,
+							"%p",
+							dateTimeString.substr(pmPos, amPmLength)
+					);
+
+					outIsPm = true;
+
+					return;
+				}
+			}
+
+			if(newPos == pos) {
+				break;
+			}
+
+			pos = newPos;
+		}
+	}
+
+} /* namespace crawlservpp::Helper::DateTime */
+
+#endif /* HELPER_DATETIME_HPP_ */
