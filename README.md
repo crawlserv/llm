@@ -2,7 +2,7 @@
 
 Implements a class named [`AI::LLM`](https://github.com/crawlserv/llm/blob/main/src/AI/LLM.hpp) for using large language models (LLMs) via APIs such as OpenAI's.
 
-Uses the `crawlservpp` namespace for compatibility with [crawlservpp](https://github.com/crawlserv/crawlservpp crawlservpp).
+Uses the `crawlservpp` namespace for compatibility with [crawlservpp](https://github.com/crawlserv/crawlservpp).
 
 It also uses the following classes and namespaces from the main project:
 * `Helper::DateTime` for time management
