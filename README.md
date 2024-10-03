@@ -26,4 +26,6 @@ For the test program, create a `config` file with the following entry:
 
 `key=[your API key]`
 
-Optional entries include `org` and `proj` for specific organizations or projects.
+Optional entries include `org=...` and `proj=...` for specific organizations or projects.
+
+Lines in `config` starting with `#` will be ignored.
