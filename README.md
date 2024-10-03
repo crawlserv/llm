@@ -25,3 +25,5 @@ For the test program, create a `config` file with the following entry:
 `key=[your API key]`
 
 Optional entries include `org` and `proj` for specific organizations or projects.
+
+[![Stand With Ukraine](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/banner2-direct.svg)](https://stand-with-ukraine.pp.ua)
