@@ -374,7 +374,6 @@ namespace crawlservpp::AI {
 		curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, LLM::writeCallback);
 		curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &buffer);
 		curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
-		curl_easy_setopt(curl.get(), CURLOPT_VERBOSE, 1L);
 
 		// set headers
 		Wrapper::CurlList headerList;
