@@ -1,3 +1,5 @@
+[![Stand With Ukraine](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/banner2-direct.svg)](https://stand-with-ukraine.pp.ua)
+
 # llm
 
 Implements a class named [`AI::LLM`](https://github.com/crawlserv/llm/blob/main/src/AI/LLM.hpp) for using large language models (LLMs) via APIs such as OpenAI's.
@@ -25,5 +27,3 @@ For the test program, create a `config` file with the following entry:
 `key=[your API key]`
 
 Optional entries include `org` and `proj` for specific organizations or projects.
-
-[![Stand With Ukraine](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/banner2-direct.svg)](https://stand-with-ukraine.pp.ua)
