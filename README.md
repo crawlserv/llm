@@ -22,7 +22,7 @@ It includes the following external libraries:
 
 Supports multi-threading.
 
-For the test program, create a `config` file with the following entry:
+For the [test program](https://github.com/crawlserv/llm/blob/main/src/main.cpp), create a `config` file with the following entry:
 
 `key=[your API key]`
 
