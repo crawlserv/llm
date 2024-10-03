@@ -1,6 +1,6 @@
 # llm
 
-Implements a class names [`AI::LLM`](https://github.com/crawlserv/llm/blob/main/src/AI/LLM.hpp) for using large language models (LLMs) via APIs such as OpenAI's.
+Implements a class named [`AI::LLM`](https://github.com/crawlserv/llm/blob/main/src/AI/LLM.hpp) for using large language models (LLMs) via APIs such as OpenAI's.
 
 Uses the `crawlservpp` namespace for compatibility with [crawlservpp](https://github.com/crawlserv/crawlservpp crawlservpp).
 
