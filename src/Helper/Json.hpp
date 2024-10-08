@@ -94,11 +94,95 @@ namespace crawlservpp::Helper::Json {
 	[[nodiscard]] std::string stringify(const std::string& stringToStringify);
 	[[nodiscard]] std::string stringify(const char * stringToStringify);
 	[[nodiscard]] std::string stringify(
+			const std::vector<std::pair<std::string, std::string>>& vectorToStringify
+	);
+	[[nodiscard]] std::string stringify(
 			const std::vector<std::vector<std::pair<std::string, std::string>>>& vectorToStringify
 	);
 	//[[nodiscard]] std::string stringify(const Struct::TextMap& textMapToStringify);
 	[[nodiscard]] std::string stringify(const rapidjson::Value& value);
 	//[[nodiscard]] std::string stringify(const jsoncons::json& json);
+
+	///@}
+	///@name Creation
+	///@{
+
+	rapidjson::Document initObject();
+
+	//! Adds a [key, value] pair to an object.
+	/*!
+	 * \param object Reference to an object initialized
+	 *   with @ref initObject().
+	 * 
+	 * \param key The key of the pair to add.
+	 * 
+	 * \param value The value of the pair to add.
+	 */
+	template<typename T>
+	inline void addKeyValuePair(rapidjson::Document& object, const std::string& key, T value) {
+		auto& allocator{object.GetAllocator()};
+
+		rapidjson::Value jsonKey;
+		rapidjson::Value jsonValue;
+		
+		jsonKey.SetString(key, allocator);
+
+		jsonValue.Set(value, allocator);
+
+		object.AddMember(jsonKey, jsonValue, allocator);
+	}
+
+	//! Adds a [key, value] pair to the value of a named object.
+	/*!
+	 * \param object Reference to an object initialized
+	 *   with @ref initObject().
+	 *
+	 * \param parentKey The key of the names object
+	 *   to which the [key, value] pair is to be added.
+	 * 
+	 * \param key The key to be added.
+	 * 
+	 * \param value The value to be added.
+	 */
+	template<typename T>
+	inline void addKeyValuePairs(
+			rapidjson::Document& object,
+			const std::string& parentKey,
+			const T& pairs
+	) {
+		auto& allocator{object.GetAllocator()};
+
+		if(!object.HasMember(parentKey)) {
+			// create parent
+			rapidjson::Value jsonParentKey;
+			rapidjson::Value jsonParentValue;
+
+			jsonParentKey.SetString(parentKey, allocator);
+
+			jsonParentValue.SetArray();
+
+			object.AddMember(jsonParentKey, jsonParentValue, allocator);
+		}
+
+		// create child
+		rapidjson::Value child;
+
+		child.SetObject();
+
+		// add keys and values
+		for(const auto& pair : pairs) {
+			rapidjson::Value jsonKey;
+			rapidjson::Value jsonValue;
+
+			jsonKey.SetString(pair.first, allocator);
+
+			jsonValue.Set(pair.second, allocator);
+
+			child.AddMember(jsonKey, jsonValue, allocator);
+		}
+
+		object[parentKey].PushBack(child, allocator);
+	}
 
 	///@}
 	///@name Parsing
@@ -258,6 +342,61 @@ namespace crawlservpp::Helper::Json {
 		return stringify(std::string(stringToStringify));
 	}
 
+	//! Converts a vector of string pairs into a JSON object with corresponding [key, value] pairs.
+	/*!
+	 * Uses @c RapidJSON for conversion into JSON.
+	 *  For more information about @c RapidJSON,
+	 *  see its
+	 *  <a href="https://github.com/Tencent/rapidjson">
+	 *  GitHub repository</a>.
+	 *
+	 * \param vectorToStringify A const reference
+	 *   to the vector containing string pairs,
+	 *   each of which represents a [key, value]
+	 *   pair.
+	 *
+	 * \returns The copy of a string containing
+	 *   valid JSON code representing an array of
+	 *   objects containing the given [key, value]
+	 *   pairs.
+	 */
+	inline std::string stringify(
+			const std::vector<std::pair<std::string, std::string>>& vectorToStringify
+	) {
+		// create document as object and get reference to allocator
+		rapidjson::Document document;
+
+		document.SetObject();
+
+		rapidjson::Document::AllocatorType& allocator{document.GetAllocator()};
+
+		// go through the vector elements representing the [key, value] pairs in the object
+		for(const auto& pair : vectorToStringify) {
+			// create key
+			rapidjson::Value key;
+			
+			key.SetString(pair.first, allocator);
+
+			// create value
+			rapidjson::Value value;
+			
+			value.SetString(pair.second, allocator);
+
+			// add [key, value] pair to object
+			document.AddMember(key, value, allocator);
+		}
+
+		// create string buffer and writer
+		rapidjson::StringBuffer buffer;
+		rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+
+		// write object to string buffer
+		document.Accept(writer);
+
+		// return string
+		return std::string(buffer.GetString(), buffer.GetSize());
+	}
+
 	//! Converts a vector of vectors of string pairs into a JSON array with corresponding objects containing [key, value] pairs.
 	/*!
 	 * Uses @c RapidJSON for conversion into JSON.
@@ -276,7 +415,9 @@ namespace crawlservpp::Helper::Json {
 	 *   objects containing the given [key, value]
 	 *   pairs.
 	 */
-	inline std::string stringify(const std::vector<std::vector<std::pair<std::string, std::string>>>& vectorToStringify) {
+	inline std::string stringify(
+			const std::vector<std::vector<std::pair<std::string, std::string>>>& vectorToStringify
+	) {
 		// create document as array and get reference to allocator
 		rapidjson::Document document;
 		
@@ -453,6 +594,15 @@ namespace crawlservpp::Helper::Json {
 
 		return result;
 	}*/
+
+	//! Initializes a new JSON object.
+	inline rapidjson::Document initObject() {
+		rapidjson::Document document;
+		
+		document.SetObject();
+
+		return document;
+	}
 
 	//! Copies and cleans the given JSON code to prepare it for parsing.
 	/*!

@@ -2,7 +2,12 @@
 #include "Main/Exception.hpp"
 
 #include <cstddef>
+#include <filesystem>
 #include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <limits>
+#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -59,7 +64,26 @@ void addHeaderIfNotEmpty(std::vector<std::string>& to, const std::string& name, 
 	to.emplace_back(name + ": " + value);
 }
 
+void progress(float value) {
+	static std::mutex lock;
+
+	std::lock_guard<std::mutex> locked(lock);
+
+	std::cout << "\r";
+
+	if(value < 1.f - std::numeric_limits<float>::epsilon()) {
+		std::cout << ' ';
+	}
+
+	if(value < 0.1f - std::numeric_limits<float>::epsilon()) {
+		std::cout << ' ';
+	}
+
+	std::cout << std::fixed << std::setprecision(1) << value * 100 << "%" << std::flush;
+}
+
 int main(int /*argc*/, char* /*argv*/[]) {
+	// set up instance for accessing LLM API
 	const Config config("config");
 	const auto organization{config.get("org")};
 	const auto project{config.get("proj")};
@@ -69,6 +93,71 @@ int main(int /*argc*/, char* /*argv*/[]) {
 	addHeaderIfNotEmpty(httpHeaders, "OpenAI-Project: ", project);
 
 	crawlservpp::AI::LLM llm("https://api.openai.com/v1/", config.get("key"), httpHeaders);
+
+	llm.setModel(config.get("model"));
+	llm.setPrompt(config.get("prompt"));
+	llm.setProgressCallback(progress);
+
+	if(!config.get("max").empty()) {
+		llm.setMaxTokens(strtoul(config.get("max").c_str(), nullptr, 10));
+	}
+
+	// print available models
+	std::size_t modelCounter{};
+
+	for(const auto& model : llm.listModels()) {
+		++modelCounter;
+
+		std::cout << "[" << modelCounter << "] " << model << "\n";
+	}
+
+	// collect texts
+	const std::string path{"inputs"};
+	std::vector<std::string> inputs;
+
+	for(const auto& entry : std::filesystem::directory_iterator(path)) {
+		if(entry.is_regular_file() && entry.path().extension() == ".txt") {
+			std::ifstream in(entry.path());
+
+			if(!in.is_open()) {
+				std::cout << "Could not read: " << entry.path() << "\n";
+
+				continue;
+			}
+
+			std::string line;
+			std::string content;
+
+			while(std::getline(in, line)) {
+				content += line;
+
+				content.push_back('\n');
+			}
+
+			if(!content.empty()) {
+				content.pop_back();
+			}
+
+			inputs.emplace_back(content);
+		}
+	}
+
+	llm.addTexts(inputs);
+
+	llm.run();
+
+	std::cout << "\n";
+
+	const auto results{llm.getResults()};
+	std::size_t resultCounter{};
+
+	llm.free();
+
+	for(const auto& result : results) {
+		++resultCounter;
+
+		std::cout << "[" << resultCounter << "] " << result << "\n";
+	}
 
 	return EXIT_SUCCESS;
 }

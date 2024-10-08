@@ -2,17 +2,15 @@
 
 # llm
 
-Implements a class named [`AI::LLM`](https://github.com/crawlserv/llm/blob/main/src/AI/LLM.hpp) for using large language models (LLMs) via APIs such as OpenAI's.
+Implements a class named [`AI::LLM`](https://github.com/crawlserv/llm/blob/main/src/AI/LLM.hpp) and a struct named [`Struct::LLMData`](https://github.com/crawlserv/llm/blob/main/src/Struct/LLMData.hpp) for using large language models (LLMs) via APIs such as OpenAI's.
 
 Uses the `crawlservpp` namespace for compatibility with [crawlservpp](https://github.com/crawlserv/crawlservpp).
 
 It also uses the following classes and namespaces from the main project:
-* `Helper::DateTime` for time management
 * `Helper::Json` (simplified) for JSON parsing)
 * `Helper::Memory` for memory management
 * `Helper::Strings` for string handling (requires `boost::algorithm`)
 * `Main::Exception` for exception handling
-* `Timer::Simple` for simple timing.
 * `Wrapper::Curl` for networking (requires `libcurl`)
 * `Wrapper::CurlList` for HTTP headers (requires `libcurl`)
 
@@ -24,7 +22,12 @@ Supports multi-threading.
 
 For the [test program](https://github.com/crawlserv/llm/blob/main/src/main.cpp), create a `config` file with the following entry:
 
-`key=[your API key]`
+```
+key=[your API key]
+model=[the selected large-language model]
+prompt=[the prompt to perform]
+max=[maximum number of tokens to be returned]
+```
 
 Optional entries include `org=...` and `proj=...` for specific organizations or projects.
 
